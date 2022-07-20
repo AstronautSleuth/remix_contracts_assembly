@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Owner } from "src/2_Owner.sol";
-import "@std/Test.sol";
+import "forge-std/Test.sol";
 
 abstract contract HelperContract {
     address constant DEPLOYER = 0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84;

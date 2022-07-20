@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { Storage } from "src/1_Storage.sol";
-import "@std/Test.sol";
+import "forge-std/Test.sol";
 
 // Tests are just for generating gas report, the actual
 // tests are for the assembly contract.

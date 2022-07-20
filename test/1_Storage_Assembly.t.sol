@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import { StorageAssembly } from "src/1_Storage_Assembly.sol";
-import "@std/Test.sol";
+import "forge-std/Test.sol";
 
 contract StorageAssemblyTest is Test {
     using stdStorage for StdStorage;

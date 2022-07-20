@@ -2,8 +2,8 @@
 pragma solidity ^0.8.0;
 
 import { BallotAssembly } from "src/3_Ballot_Assembly.sol";
-import "@std/Test.sol";
-import "@std/console.sol";
+import "forge-std/Test.sol";
+import "forge-std/console.sol";
 
 abstract contract HelperContract {
     address constant DEPLOYER = 0xb4c79daB8f259C7Aee6E5b2Aa729821864227e84;
