@@ -46,13 +46,13 @@ contract BallotAssembly {
 
 
             // 3. Push an array of proposalNames to the state variable proposals
-            mstore(0, _proposals.slot)                          // store _proposals array at memory location 0
+            mstore(0, _proposals.slot)                          // store storage location of _proposals array at memory location 0
             slot := keccak256(0, 32)                            // keccak the first 32 bytes to get the storage location of the first element in the _proposals array
 
             let len := mload(proposalNames)                     // length is the first element at the memory location of the proposalNames argument
-            sstore(_proposals.slot, len)                        // store the length at the storage location of the _proposals array
+            sstore(_proposals.slot, len)                        // store the length of proposalNames at the storage location of the _proposals array
 
-            let nameLocInMemory := add(proposalNames, 32)       // get the first proposal in proposalNames
+            let nameLocInMemory := add(proposalNames, 32)       // get the first proposal in proposalNames, offset of 32 is added since the first 32 bytes is used by length
 
             // For loop
             for
@@ -60,7 +60,7 @@ contract BallotAssembly {
             lt(nameLocInMemory, end)                            // while current memory location is less than last memory location
             { nameLocInMemory := add(nameLocInMemory, 32) }     // add an offset of 32 to get the next proposal
             {
-                sstore(slot, mload(nameLocInMemory))            // store proposal 
+                sstore(slot, mload(nameLocInMemory))            // store proposal
                 sstore(add(slot, 1), 0)                         // voteCount is stored at an offset of 1
                 slot := add(slot , 2)                           // calculate the next storage location to store the next proposal
             }
