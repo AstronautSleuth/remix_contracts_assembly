@@ -33,40 +33,36 @@ contract BallotAssembly {
      */
     constructor(bytes32[] memory proposalNames) {
         assembly {
-            // Set the value of slot 0 (chairperson) in storage to caller() / msg.sender
-            let sender := caller()
-            sstore(0, sender)
+            // 1. Assign msg.sender to the state variable chairperson
+            let sender := caller()                              // get msg.sender
+            sstore(0, sender)                                   // store msg.sender at storage location 0
             
-            // Calculate the storage location of value based on this key (msg.sender)
-            mstore(0, sender)
-            mstore(32, _voters.slot)
-            let slot := keccak256(0, 64)
 
-            // Offset of 0 since weight is first element in struct
-            sstore(slot, 1)
+            // 2. Set the weight of chairperson to 1
+            mstore(0, sender)                                   // store msg.sender at memory location 0
+            mstore(32, _voters.slot)                            // store storage location of _voters mapping at memory location 32
+            let slot := keccak256(0, 64)                        // keccak the first 64 bytes to get the storage location of the voter struct corresponding to msg.sender
+            sstore(slot, 1)                                     // update the weight of the chairperson
 
-            // Calculate the location of Proposals in storage
-            mstore(0, _proposals.slot)
-            slot := keccak256(0, 32)
 
-            // Length of proposals is stored at the position of Proposals
-            // Store length of proposals
-            let len := mload(proposalNames)
-            sstore(_proposals.slot, len)
+            // 3. Push an array of proposalNames to the state variable proposals
+            mstore(0, _proposals.slot)                          // store _proposals array at memory location 0
+            slot := keccak256(0, 32)                            // keccak the first 32 bytes to get the storage location of the first element in the _proposals array
 
-            // Get the first element in proposalNames
-            let nameLocInMemory := add(proposalNames, 32)
+            let len := mload(proposalNames)                     // length is the first element at the memory location of the proposalNames argument
+            sstore(_proposals.slot, len)                        // store the length at the storage location of the _proposals array
 
-            // Update proposals
+            let nameLocInMemory := add(proposalNames, 32)       // get the first proposal in proposalNames
+
+            // For loop
             for
-            { let end := add(nameLocInMemory, mul(len, 32)) }
-            lt(nameLocInMemory, end)
-            { nameLocInMemory := add(nameLocInMemory, 32) }
+            { let end := add(nameLocInMemory, mul(len, 32)) }   // calculate memory location of last proposal
+            lt(nameLocInMemory, end)                            // while current memory location is less than last memory location
+            { nameLocInMemory := add(nameLocInMemory, 32) }     // add an offset of 32 to get the next proposal
             {
-                // Store proposalName in storage
-                sstore(slot, mload(nameLocInMemory))        // name (offset 0)
-                sstore(add(slot, 1), 0)                     // voteCount (offset 1) 
-                slot := add(slot , 2)                       // update slot for next proposalName
+                sstore(slot, mload(nameLocInMemory))            // store proposal 
+                sstore(add(slot, 1), 0)                         // voteCount is stored at an offset of 1
+                slot := add(slot , 2)                           // calculate the next storage location to store the next proposal
             }
         }
     }
