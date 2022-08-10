@@ -23,9 +23,9 @@ contract BallotAssembly {
 
     address public chairperson;
 
-    mapping(address => Voter) internal _voters;
+    mapping(address => Voter) internal _voters; // Renamed from voters to _voters so that we can implement an optimized getter function
 
-    Proposal[] internal _proposals;
+    Proposal[] internal _proposals; // Renamed from proposals to _proposals so that we can implement an optimized getter function
 
     /**
      * @dev Create a new ballot to choose one of 'proposalNames'.
