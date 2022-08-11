@@ -131,93 +131,80 @@ contract BallotAssembly {
             // Helper function for reverting
             function _revert(message, length) {
                 let sig := 0x08c379a000000000000000000000000000000000000000000000000000000000
-                mstore(0, sig)
-                mstore(4, 32)
-                mstore(36, length)
-                mstore(68, message)
-                revert(0, 100) 
+                mstore(0, sig)                                          // store "Error" signature at memory location 0
+                mstore(4, 32)                                           // store offset at memory location 4
+                mstore(36, length)                                      // store length at memory location 36 (4 + 32)
+                mstore(68, message)                                     // store message at memory location 68 (4 + 32 + 32)
+                revert(0, 100)                                          // revert with offset 0 and length of 100 (4 + 32 + 32 + 32)
             }
 
             // Helper function for calculating slot in mapping
             function _getMappingSlot(key) -> slot {
-                mstore(0, key)
-                mstore(32, _voters.slot) // Since we only have 1 mapping, we can "hardcode" the position
-                slot := keccak256(0, 64)
+                mstore(0, key)                                          // store key at memory location 0
+                mstore(32, _voters.slot)                                // store storage location of _voters mapping at memory location 32
+                slot := keccak256(0, 64)                                // keccak the first 64 bytes to get the storage location of the voter struct corresponding to key
             }
 
-            let sender := caller()
-            let senderSlot := _getMappingSlot(sender)
+            // 1. Revert if voter already voted
+            let sender := caller()                                      // get msg.sender
+            let senderSlot := _getMappingSlot(sender)                   // get the storage location of the voter struct corresponding to msg.sender
 
-            // Offset of 1 since voted and delegate can be packed into a single 32 bytes
-            let packed := sload(add(senderSlot, 1))
+            let packed := sload(add(senderSlot, 1))                     // add an offset of 1 since voted and delegate are packed into a single 32 bytes
 
-            // Revert if sender.voted != 0
-            // Bitwise AND operation to retrieve the right most byte
-            if eq(and(packed, 0xff), 1) {
-                _revert("You already voted.", 18)
+            if and(and(packed, 0xff), 1) {                              // bitwise AND operation to retrieve the right most byte and to check if voter has voted
+                _revert("You already voted.", 18)                       // revert with the correct error message and length
             }
 
-            // Revert if to == self
-            if eq(to, sender) {
-                _revert("Self-delegation is disallowed.", 30)
+
+            // 2. Revert if trying to delegate to self
+            if eq(to, sender) {                                         // eq operation to check if msg.sender is trying to delegate to self
+                _revert("Self-delegation is disallowed.", 30)           // revert with the correct error message and length
             }
 
-            // Calculate the storage location of value based on this key (to)
-            let toSlot := _getMappingSlot(to)
 
-            // Offset of 1 since voted and delegate can be packed into a single 32 bytes
-            packed := sload(add(toSlot, 1))
+            // 3. Revert if a delegate loop exists
+            let toSlot := _getMappingSlot(to)                           // get the storage location of the voter struct corresponding to to
+            packed := sload(add(toSlot, 1))                             // add an offset of 1 since voted and delegate are packed into a single 32 bytes
 
-            // Shift right by 1 byte (bool takes 8 bits) to get delegate
-            let _delegate := shr(8, packed)
+            let _delegate := shr(8, packed)                             // shift right by 1 byte (bool takes 8 bits) to get delegate
 
-            // Placeholder var for next step
-            let temp
+            let temp                                                    // temporary placeholder variable
 
-            // Check that there is no loop
-            for { } xor(_delegate, 0) { } {
-
-                // Revert if delgate == msg.sender
-                if eq(_delegate, sender) {
-                    _revert("Found loop in delegation.", 25)
+            for { } xor(_delegate, 0) { } {                             // bitwise XOR operation is used to check if delegate 
+                if eq(_delegate, sender) {                              // eq operation to check if delegate is msg.sender
+                    _revert("Found loop in delegation.", 25)            // revert with the correct error message and length
                 }
-
-                // Get the delegate's delegate
-                temp := _getMappingSlot(_delegate)
-                temp := sload(add(temp, 1))
-                _delegate := shr(8, temp)
+                temp := _getMappingSlot(_delegate)                      // get the storage location of the voter struct corresponding to _delegate
+                temp := sload(add(temp, 1))                             // add an offset of 1 since voted and delegate are packed into a single 32 bytes 
+                _delegate := shr(8, temp)                               // get the delegate's delegate
             }
 
-            // set sender.voted = true and sender.delegate = to
-            // Bitwise OR operation to set bits.
-            // Final packed value should be 0x00000000000<delegate's address><voted>
-            let updatedPacked := or(0, to) // set delegate's address = to address
-            updatedPacked := shl(8, updatedPacked) // shift address left by 1 byte
-            updatedPacked := or(updatedPacked, 1) // set voted = true
+            let updatedPacked := or(0, to)                              // bitwise OR operation to update a new packed variable with to address
+            updatedPacked := shl(8, updatedPacked)                      // shift left by 1 byte 
+            updatedPacked := or(updatedPacked, 1)                       // bitwise OR operation to set voted = true to the updated packed variable
 
-            // Store newly packed value back into the correct slot (and offset)
-            sstore(add(senderSlot, 1), updatedPacked)
+            sstore(add(senderSlot, 1), updatedPacked)                   // store the updated packed variable (delegate + voted) for sender
 
-            // Get To's voted
-            switch and(packed, 0xff) 
-            case 0 {
-                // If to has not voted, add sender's weight to to's weight
-                sstore(toSlot, add(sload(toSlot), sload(senderSlot)))
+            switch and(packed, 0xff)                                    // bitwise AND operation to retrieve the right most byte
+            case 0 {                                                    // if right most byte is 0 i.e. delegate has not voted
+                sstore(
+                    toSlot,
+                    add(sload(toSlot), sload(senderSlot))
+                )                                                       // increment delegate's weight with sender's weight
             }
-            case 1 {
-                // If to has voted, add sender's weight to to's vote's voteCount
-                // Calculate the location of Proposals in storage
-                mstore(0, _proposals.slot)
-                let proposalsSlot := keccak256(0, 32)
+            case 1 {                                                    // if right most byte is 1 i.e. delegate has voted          
+                mstore(0, _proposals.slot)                              // store storage location of _proposals array at memory location 0
+                let proposalsSlot := keccak256(0, 32)                   // keccak the first 32 bytes to get the storage location of the first element in the _proposals array
 
-                // Calculate the offset required to retrieve the correct slot corresponding to to's vote.
-                let index := sload(add(toSlot, 2)) // get to's vote
-                let offset := mul(2, index) // get offset in Proposals
-                let totalOffset := add(offset, 1) // add offset of 1 to get voteCount
-                let voteCountSlot := add(proposalsSlot, totalOffset) // add total offset to get to's vote's voteCount slot
+                let index := sload(add(toSlot, 2))                      // add an offset of 2 to get to's vote
+                let offset := mul(2, index)                             // multiply by 2 (name, voteCount) to get the index in Proposals
+                let totalOffset := add(offset, 1)                       // add another offset of 1 to get to's vote's voteCount
+                let voteCountSlot := add(proposalsSlot, totalOffset)    // get the storage location of to's vote's voteCount slot
 
-                // Increment to's vote's voteCount by sender's weight
-                sstore(voteCountSlot, add(sload(voteCountSlot), sload(senderSlot)))
+                sstore(
+                    voteCountSlot,
+                    add(sload(voteCountSlot), sload(senderSlot))
+                )                                                       // increment to's vote's voteCount by sender's weight 
             }
 
         }
