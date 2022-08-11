@@ -76,48 +76,49 @@ contract BallotAssembly {
             // Helper function for reverting
             function _revert(message, length) {
                 let sig := 0x08c379a000000000000000000000000000000000000000000000000000000000
-                mstore(0, sig)
-                mstore(4, 32)
-                mstore(36, length)
-                mstore(68, message)
-                revert(0, 100) 
+                mstore(0, sig)                                  // store "Error" signature at memory location 0
+                mstore(4, 32)                                   // store offset at memory location 4
+                mstore(36, length)                              // store length at memory location 36 (4 + 32)
+                mstore(68, message)                             // store message at memory location 68 (4 + 32 + 32)
+                revert(0, 100)                                  // revert with offset 0 and length of 100 (4 + 32 + 32 + 32)
             }
 
-            // Revert if msg.sender != chairperson
-            if xor(caller(), sload(0)) {
-                // Error messages split into 2 because each var can only hold 32 bytes
-                let err := "Only chairperson can give right "
-                let err2 := "to vote."
-                mstore(0, 0x08c379a000000000000000000000000000000000000000000000000000000000)
-                mstore(4, 32)
-                mstore(36, 40)
-                mstore(68, err)
-                mstore(100, err2)
-                revert(0, 132)
+
+            // 1. Revert if msg.sender != chairperson
+            if xor(caller(), sload(0)) {                        // bitwise XOR operation is used to check if msg.sender != chairperson
+                let sig := 0x08c379a000000000000000000000000000000000000000000000000000000000
+                let err := "Only chairperson can give right "   // first 32 bytes of the error message
+                let err2 := "to vote."                          // remaining 8 bytes of the error message
+                mstore(0, sig)                                  // store "Error" signature at memory location 0
+                mstore(4, 32)                                   // store offset at memory location 4
+                mstore(36, 40)                                  // store length at memory location 36 (4 + 32)
+                mstore(68, err)                                 // store first part of message at memory location 68 (4 + 32 + 32)
+                mstore(100, err2)                               // store second part of message at memory location 100 (4 + 32 + 32 + 32)
+                revert(0, 132)                                  // revert with offset 0 and length of 132 (4 + 32 + 32 + 32 + 32)
             }
 
-            // Calculate the storage location of value based on this key (voter)
-            mstore(0, voter)
-            mstore(32, _voters.slot)
-            let slot := keccak256(0, 64)
 
-            // Offset of 1 since voted and delegate can be packed into a single 32 bytes
-            let packed := sload(add(slot, 1))
+            // 2. Revert if voter already voted
+            mstore(0, voter)                                    // store voter at memory location 0
+            mstore(32, _voters.slot)                            // store storage location of _voters mapping at memory location 32
+            let slot := keccak256(0, 64)                        // keccak the first 64 bytes to get the storage location of the voter struct corresponding to voter
 
-            // Bitwise AND operation to retrieve the right most byte
-            // Revert if voter.voted != 0
-            if and(and(packed, 0xff), 1) {
-                _revert("The voter already voted.", 24)
+            let packed := sload(add(slot, 1))                   // add an offset of 1 since voted and delegate are packed into a single 32 bytes
+            
+            if and(and(packed, 0xff), 1) {                      // bitwise AND operation to retrieve the right most byte and to check if voter has voted
+                _revert("The voter already voted.", 24)         // revert with the correct error message and length
             }
 
-            // Revert if voter.weight != 0
-            if xor(sload(slot), 0) {
-                _revert("", 0)
+
+            // 3. Revert if voter’s weight is not 0
+            if xor(sload(slot), 0) {                            // bitwise XOR operation is used to check if voter's weight != 0
+                _revert("", 0)                                  // revert with the correct error message and length
 
             }
 
-            // Assign voter weight to 1
-            sstore(slot, 1)
+
+            // 4. Increase the voter’s weight to 1
+            sstore(slot, 1)                                     // update the weight of the voter
         }
     }
 
