@@ -179,12 +179,16 @@ contract BallotAssembly {
                 _delegate := shr(8, temp)                               // get the delegate's delegate
             }
 
+
             let updatedPacked := or(0, to)                              // bitwise OR operation to update a new packed variable with to address
             updatedPacked := shl(8, updatedPacked)                      // shift left by 1 byte 
             updatedPacked := or(updatedPacked, 1)                       // bitwise OR operation to set voted = true to the updated packed variable
 
             sstore(add(senderSlot, 1), updatedPacked)                   // store the updated packed variable (delegate + voted) for sender
 
+
+            // 4. If delegate already voted, increase the voteCount of the delegate’s vote by sender’s weight
+            // 5. If delegate has not voted, increase delegate’s weight by sender’s weight
             switch and(packed, 0xff)                                    // bitwise AND operation to retrieve the right most byte
             case 0 {                                                    // if right most byte is 0 i.e. delegate has not voted
                 sstore(
